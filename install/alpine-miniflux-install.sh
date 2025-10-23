@@ -55,7 +55,7 @@ msg_info "Configuring Miniflux"
 mkdir -p /etc/miniflux
 IPADDRESS=$(hostname -i)
 ADMIN_USER="admin"
-ADMIN_PASS="miniflux"
+ADMIN_PASS=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c20)
 {
   echo "LOG_DATE_TIME=yes"
   echo "LISTEN_ADDR=0.0.0.0:8080"
