@@ -73,10 +73,9 @@ ADMIN_PASS="miniflux"
 } >~/miniflux-admin.creds
 msg_ok "Configured Miniflux"
 
-# msg_info "Applying Database Migrations and Creating Admin"
+msg_info "Applying Database Migrations and Creating Admin"
 miniflux -c /etc/miniflux.conf -migrate
-# miniflux -c /etc/miniflux.conf -create-admin
-# msg_ok "Applied Migrations and Created Admin"
+msg_ok "Applied Migrations and Created Admin"
 
 msg_info "Enabling and Starting Miniflux"
 $STD rc-update add miniflux default
