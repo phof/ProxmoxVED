@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2021-2025 community-scripts ORG
+# Copyright (c) 2021-2026 community-scripts ORG
 # Author: MickLesk (CanbiZ)
 # License: MIT | https://github.com/community-scripts/ProxmoxVED/raw/main/LICENSE
 # Source:
@@ -15,15 +15,15 @@ update_os
 
 msg_info "Installing Dependencies"
 $STD apt-get install -y \
-    build-essential \
-    make \
-    git
+  build-essential \
+  make \
+  git
 msg_ok "Installed Dependencies"
 
 ## WIP - only protoype with git call
 
 setup_go
-NODE_VERSION="22" NODE_MODULE="pnpm" setup_nodejs
+NODE_VERSION="24" NODE_MODULE="pnpm" setup_nodejs
 
 msg_info "Setup ocis"
 cd /opt

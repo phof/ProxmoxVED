@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2021-2025 tteck
+# Copyright (c) 2021-2026 tteck
 # Author: tteck (tteckster)
 # License: MIT
 # https://github.com/community-scripts/ProxmoxVE/raw/main/LICENSE
@@ -51,29 +51,29 @@ pve_check() {
   PVE_VER="$(pveversion | awk -F'/' '{print $2}' | awk -F'-' '{print $1}')"
 
   # Proxmox VE 8.x: allow 8.0 – 8.9
-  if [[ "$PVE_VER" =~ ^9\.([0-9]+)(\.[0-9]+)?$ ]]; then
+  if [[ "$PVE_VER" =~ ^8\.([0-9]+)(\.[0-9]+)?$ ]]; then
     local MINOR="${BASH_REMATCH[1]}"
-    if ((MINOR != 0)); then
+    if ((MINOR < 0 || MINOR > 9)); then
       msg_error "Unsupported Proxmox VE version: $PVE_VER"
-      msg_error "Supported versions: 8.0 – 8.9 or 9.0.x"
+      msg_error "Supported versions: 8.0 – 8.9 or 9.0 – 9.1"
       exit 1
     fi
     return 0
   fi
 
-  # Proxmox VE 9.x: allow only 9.0
+  # Proxmox VE 9.x: allow 9.0 – 9.1
   if [[ "$PVE_VER" =~ ^9\.([0-9]+)$ ]]; then
     local MINOR="${BASH_REMATCH[1]}"
-    if ((MINOR != 0)); then
+    if ((MINOR < 0 || MINOR > 1)); then
       msg_error "Unsupported Proxmox VE version: $PVE_VER"
-      msg_error "Supported versions: 8.0 – 8.9 or 9.0"
+      msg_error "Supported versions: 8.0 – 8.9 or 9.0 – 9.1"
       exit 1
     fi
     return 0
   fi
 
   msg_error "Unsupported Proxmox VE version: $PVE_VER"
-  msg_error "Supported versions: 8.0 – 8.9 or 9.0"
+  msg_error "Supported versions: 8.0 – 8.9 or 9.0 – 9.1"
   exit 1
 }
 
@@ -132,7 +132,7 @@ install() {
   $STD apt-get update
   $STD apt-get install -y netdata
   msg_ok "Installed Netdata"
-  msg_ok "Completed Successfully!\n"
+  msg_ok "Completed successfully!\n"
   echo -e "\n Netdata should be reachable at${BL} http://$(hostname -I | awk '{print $1}'):19999 ${CL}\n"
 }
 
@@ -150,7 +150,7 @@ uninstall() {
   $STD apt autoremove -y
   $STD userdel netdata || true
   msg_ok "Uninstalled Netdata"
-  msg_ok "Completed Successfully!\n"
+  msg_ok "Completed successfully!\n"
 }
 
 header_info

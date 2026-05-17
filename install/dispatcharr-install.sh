@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2021-2025 community-scripts ORG
-# Author: ekke85
-# License: MIT | https://github.com/community-scripts/ProxmoxVE/raw/main/LICENSE
+# Copyright (c) 2021-2026 community-scripts ORG
+# Author: ekke85 | MickLesk
+# License: MIT | https://github.com/community-scripts/ProxmoxVED/raw/main/LICENSE
 # Source: https://github.com/Dispatcharr/Dispatcharr
 
 source /dev/stdin <<<"$FUNCTIONS_FILE_PATH"
@@ -12,86 +12,78 @@ catch_errors
 setting_up_container
 network_check
 update_os
+setup_hwaccel
 
 msg_info "Installing Dependencies"
 $STD apt install -y \
   build-essential \
-  gcc \
   python3-dev \
   libpq-dev \
   nginx \
   redis-server \
   ffmpeg \
   procps \
+  vlc-bin \
+  vlc-plugin-base \
   streamlink
 msg_ok "Installed Dependencies"
 
 setup_uv
 NODE_VERSION="24" setup_nodejs
 PG_VERSION="16" setup_postgresql
+PG_DB_NAME="dispatcharr_db" PG_DB_USER="dispatcharr_usr" setup_postgresql_db
+fetch_and_deploy_gh_release "dispatcharr" "Dispatcharr/Dispatcharr" "tarball"
 
-msg_info "Creating PostgreSQL Database"
-DB_NAME=dispatcharr_db
-DB_USER=dispatcharr_usr
-DB_PASS="$(openssl rand -base64 18 | tr -dc 'a-zA-Z0-9' | cut -c1-13)"
-$STD sudo -u postgres psql -c "CREATE ROLE $DB_USER WITH LOGIN PASSWORD '$DB_PASS';"
-$STD sudo -u postgres psql -c "CREATE DATABASE $DB_NAME WITH OWNER $DB_USER ENCODING 'UTF8' TEMPLATE template0;"
-$STD sudo -u postgres psql -c "ALTER ROLE $DB_USER SET client_encoding TO 'utf8';"
-$STD sudo -u postgres psql -c "ALTER ROLE $DB_USER SET default_transaction_isolation TO 'read committed';"
-$STD sudo -u postgres psql -c "ALTER ROLE $DB_USER SET timezone TO 'UTC';"
-
-cat <<EOF >~/dispatcharr.creds
-Dispatcharr-Credentials
-Dispatcharr Database Name: $DB_NAME
-Dispatcharr Database User: $DB_USER
-Dispatcharr Database Password: $DB_PASS
-EOF
-msg_ok "Created PostgreSQL Database"
-
-fetch_and_deploy_gh_release "dispatcharr" "Dispatcharr/Dispatcharr"
-
-msg_info "Installing Python Dependencies with uv"
-cd /opt/dispatcharr || exit
-
-$STD uv venv
-$STD uv pip install -r requirements.txt --index-strategy unsafe-best-match
-$STD uv pip install gunicorn gevent celery redis daphne
+msg_info "Installing Python Dependencies"
+cd /opt/dispatcharr
+$STD uv venv --clear
+$STD uv sync
+$STD uv pip install uwsgi gevent celery redis daphne
 msg_ok "Installed Python Dependencies"
 
 msg_info "Configuring Dispatcharr"
-export DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@localhost:5432/${DB_NAME}"
-export POSTGRES_DB=$DB_NAME
-export POSTGRES_USER=$DB_USER
-export POSTGRES_PASSWORD=$DB_PASS
+install -d -m 755 \
+  /data/{logos,recordings,plugins,db} \
+  /data/uploads/{m3us,epgs} \
+  /data/{m3us,epgs}
+chown -R root:root /data
+DJANGO_SECRET=$(openssl rand -base64 48 | tr -dc 'a-zA-Z0-9' | cut -c1-50)
+export DATABASE_URL="postgresql://${PG_DB_USER}:${PG_DB_PASS}@localhost:5432/${PG_DB_NAME}"
+export POSTGRES_DB=$PG_DB_NAME
+export POSTGRES_USER=$PG_DB_USER
+export POSTGRES_PASSWORD=$PG_DB_PASS
 export POSTGRES_HOST=localhost
+export DJANGO_SECRET_KEY=$DJANGO_SECRET
 $STD uv run python manage.py migrate --noinput
 $STD uv run python manage.py collectstatic --noinput
 cat <<EOF >/opt/dispatcharr/.env
-DATABASE_URL=postgresql://${DB_USER}:${DB_PASS}@localhost:5432/${DB_NAME}
-POSTGRES_DB=$DB_NAME
-POSTGRES_USER=$DB_USER
-POSTGRES_PASSWORD=$DB_PASS
+DATABASE_URL=postgresql://${PG_DB_USER}:${PG_DB_PASS}@localhost:5432/${PG_DB_NAME}
+POSTGRES_DB=$PG_DB_NAME
+POSTGRES_USER=$PG_DB_USER
+POSTGRES_PASSWORD=$PG_DB_PASS
 POSTGRES_HOST=localhost
 CELERY_BROKER_URL=redis://localhost:6379/0
+DJANGO_SECRET_KEY=$DJANGO_SECRET
 EOF
-cd /opt/dispatcharr/frontend || exit
-$STD npm install --legacy-peer-deps
+cd /opt/dispatcharr/frontend
+node -e "const p=require('./package.json');p.overrides=p.overrides||{};p.overrides['webworkify-webpack']='2.1.3';require('fs').writeFileSync('package.json',JSON.stringify(p,null,2));"
+rm -f package-lock.json
+$STD npm install --no-audit --progress=false
 $STD npm run build
 msg_ok "Configured Dispatcharr"
 
 msg_info "Configuring Nginx"
 cat <<EOF >/etc/nginx/sites-available/dispatcharr.conf
 server {
-    listen 80;
+    listen 9191;
     server_name _;
+    client_max_body_size 100M;
 
-    # Serve static assets with correct MIME types
     location /assets/ {
         alias /opt/dispatcharr/frontend/dist/assets/;
         expires 30d;
         add_header Cache-Control "public, immutable";
 
-        # Explicitly set MIME types for webpack-built assets
         types {
             text/javascript js;
             text/css css;
@@ -124,36 +116,44 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
-    # All other requests proxy to Gunicorn
     location / {
         include proxy_params;
         proxy_pass http://127.0.0.1:5656;
     }
 }
 EOF
-
 ln -sf /etc/nginx/sites-available/dispatcharr.conf /etc/nginx/sites-enabled/dispatcharr.conf
 rm -f /etc/nginx/sites-enabled/default
 systemctl restart nginx
 msg_ok "Configured Nginx"
 
 msg_info "Creating Services"
-cat <<EOF >/opt/dispatcharr/start-gunicorn.sh
+cat <<'EOF' >/opt/dispatcharr/start-uwsgi.sh
 #!/usr/bin/env bash
 cd /opt/dispatcharr
 set -a
 source .env
 set +a
-exec uv run gunicorn \\
-    --workers=4 \\
-    --worker-class=gevent \\
-    --timeout=300 \\
-    --bind 0.0.0.0:5656 \\
-    dispatcharr.wsgi:application
+exec .venv/bin/uwsgi \
+    --chdir=/opt/dispatcharr \
+    --module=dispatcharr.wsgi:application \
+    --master \
+    --workers=4 \
+    --gevent=400 \
+    --http=0.0.0.0:5656 \
+    --http-keepalive=1 \
+    --http-timeout=600 \
+    --socket-timeout=600 \
+    --buffer-size=65536 \
+    --post-buffering=4096 \
+    --lazy-apps \
+    --thunder-lock \
+    --die-on-term \
+    --vacuum
 EOF
-chmod +x /opt/dispatcharr/start-gunicorn.sh
+chmod +x /opt/dispatcharr/start-uwsgi.sh
 
-cat <<EOF >/opt/dispatcharr/start-celery.sh
+cat <<'EOF' >/opt/dispatcharr/start-celery.sh
 #!/usr/bin/env bash
 cd /opt/dispatcharr
 set -a
@@ -163,7 +163,7 @@ exec uv run celery -A dispatcharr worker -l info -c 4
 EOF
 chmod +x /opt/dispatcharr/start-celery.sh
 
-cat <<EOF >/opt/dispatcharr/start-celerybeat.sh
+cat <<'EOF' >/opt/dispatcharr/start-celerybeat.sh
 #!/usr/bin/env bash
 cd /opt/dispatcharr
 set -a
@@ -173,7 +173,7 @@ exec uv run celery -A dispatcharr beat -l info
 EOF
 chmod +x /opt/dispatcharr/start-celerybeat.sh
 
-cat <<EOF >/opt/dispatcharr/start-daphne.sh
+cat <<'EOF' >/opt/dispatcharr/start-daphne.sh
 #!/usr/bin/env bash
 cd /opt/dispatcharr
 set -a
@@ -191,7 +191,7 @@ After=network.target postgresql.service redis-server.service
 [Service]
 Type=simple
 WorkingDirectory=/opt/dispatcharr
-ExecStart=/opt/dispatcharr/start-gunicorn.sh
+ExecStart=/opt/dispatcharr/start-uwsgi.sh
 Restart=on-failure
 RestartSec=10
 User=root
@@ -258,9 +258,4 @@ msg_ok "Created Services"
 
 motd_ssh
 customize
-
-msg_info "Cleaning up"
-$STD apt -y autoremove
-$STD apt -y autoclean
-$STD apt -y clean
-msg_ok "Cleaned"
+cleanup_lxc

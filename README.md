@@ -12,6 +12,12 @@ This repository contains a collection of scripts for managing and automating Pro
 
 ---
 
+## Want to help?
+
+Follow [here](https://community-scripts.org/docs) to see our Documentations.
+
+---
+
 ## 🚀 Development Status
 
 - **⚠️ Unstable**: Features may be incomplete or subject to change.
@@ -24,7 +30,7 @@ This repository contains a collection of scripts for managing and automating Pro
 
 Join the discussion, contribute code, or report issues:
 
-- **Discord**: [Join the Proxmox Helper Scripts Discord server](https://discord.gg/UHrpNWGwkH)
+- **Discord**: [Join the Proxmox Helper Scripts Discord server](https://discord.gg/N9dsd6RT)
 - **GitHub Issues**: [Report bugs or request features](https://github.com/community-scripts/ProxmoxVED/issues)
 
 ## 📜 License

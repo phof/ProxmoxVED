@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2021-2025 community-scripts ORG
-# Author: Slaviša Arežina (tremor021)
-# License: MIT | https://github.com/community-scripts/ProxmoxVE/raw/main/LICENSE
+# Copyright (c) 2021-2026 community-scripts ORG
+# Author: MickLesk (CanbiZ)
+# License: MIT | https://github.com/community-scripts/ProxmoxVED/raw/main/LICENSE
 # Source: https://github.com/gitroomhq/postiz-app
 
 source /dev/stdin <<<"$FUNCTIONS_FILE_PATH"
@@ -13,100 +13,239 @@ setting_up_container
 network_check
 update_os
 
-msg_info "Installing dependencies"
-$STD apt-get install -y \
-    build-essential \
-    python3-pip \
-    supervisor \
-    debian-keyring \
-    debian-archive-keyring \
-    apt-transport-https \
-    redis
-msg_ok "Installed dependencies"
+msg_info "Installing Dependencies"
+$STD apt install -y \
+  build-essential \
+  python3 \
+  redis-server \
+  nginx
+msg_ok "Installed Dependencies"
 
-NODE_VERSION="20" setup_nodejs
 PG_VERSION="17" setup_postgresql
+PG_DB_NAME="postiz" PG_DB_USER="postiz" setup_postgresql_db
+NODE_VERSION="24" setup_nodejs
 
-msg_info "Setting up PostgreSQL Database"
-DB_NAME=postiz
-DB_USER=postiz
-DB_PASS="$(openssl rand -base64 18 | cut -c1-13)"
-$STD sudo -u postgres psql -c "CREATE ROLE $DB_USER WITH LOGIN PASSWORD '$DB_PASS';"
-$STD sudo -u postgres psql -c "CREATE DATABASE $DB_NAME WITH OWNER $DB_USER ENCODING 'UTF8' TEMPLATE template0;"
-$STD sudo -u postgres psql -c "ALTER ROLE $DB_USER SET client_encoding TO 'utf8';"
-$STD sudo -u postgres psql -c "ALTER ROLE $DB_USER SET default_transaction_isolation TO 'read committed';"
-$STD sudo -u postgres psql -c "ALTER ROLE $DB_USER SET timezone TO 'UTC'"
-{
-    echo "Postiz DB Credentials"
-    echo "Postiz Database User: $DB_USER"
-    echo "Postiz Database Password: $DB_PASS"
-    echo "Postiz Database Name: $DB_NAME"
-} >>~/postiz.creds
-msg_ok "Set up PostgreSQL Database"
+fetch_and_deploy_gh_release "temporal" "temporalio/cli" "prebuild" "latest" "/opt/temporal" "temporal_cli_*_linux_amd64.tar.gz"
+chmod +x /opt/temporal/temporal
 
-msg_info "Setting up Caddy"
-curl -1sLf "https://dl.cloudsmith.io/public/caddy/stable/gpg.key" | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-curl -1sLf "https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt" >/etc/apt/sources.list.d/caddy-stable.list
-$STD apt-get update
-$STD apt-get install caddy
-msg_ok "Set up Caddy"
+fetch_and_deploy_gh_release "postiz" "gitroomhq/postiz-app" "tarball"
 
-fetch_and_deploy_gh_release "postiz" "gitroomhq/postiz-app"
+msg_info "Installing pnpm"
+PNPM_VERSION=$(sed -n 's/.*"packageManager":\s*"pnpm@\([^"]*\)".*/\1/p' /opt/postiz/package.json)
+$STD npm install -g "pnpm@${PNPM_VERSION}"
+msg_ok "Installed pnpm"
 
-msg_info "Configuring Postiz"
-LOCAL_IP=$(hostname -I | awk '{print $1}')
-JWT_SECRET=$(openssl rand -base64 64 | tr '+/' '-_' | tr -d '=')
+msg_info "Configuring Application"
+JWT_SECRET=$(openssl rand -base64 32)
+mkdir -p /opt/postiz/uploads
+cat <<EOF >/opt/postiz/.env
+DATABASE_URL=postgresql://${PG_DB_USER}:${PG_DB_PASS}@localhost:5432/${PG_DB_NAME}
+REDIS_URL=redis://localhost:6379
+JWT_SECRET=${JWT_SECRET}
+MAIN_URL=http://${LOCAL_IP}
+FRONTEND_URL=http://${LOCAL_IP}
+NEXT_PUBLIC_BACKEND_URL=http://${LOCAL_IP}/api
+BACKEND_INTERNAL_URL=http://localhost:3000
+NOT_SECURED=true
+TEMPORAL_ADDRESS=localhost:7233
+IS_GENERAL=true
+STORAGE_PROVIDER=local
+UPLOAD_DIRECTORY=/opt/postiz/uploads
+NEXT_PUBLIC_UPLOAD_DIRECTORY=/uploads
+NX_ADD_PLUGINS=false
+EOF
+msg_ok "Configured Application"
+
+msg_info "Building Application"
 cd /opt/postiz
-mkdir -p /etc/supervisor.d
-$STD npm --no-update-notifier --no-fund --global install pnpm@10.6.1 pm2
-cp var/docker/supervisord.conf /etc/supervisord.conf
-cp var/docker/Caddyfile ./Caddyfile
-cp var/docker/entrypoint.sh ./entrypoint.sh
-cp var/docker/supervisord/caddy.conf /etc/supervisor.d/caddy.conf
-sed -i "s#/app/Caddyfile#/opt/postiz/Caddyfile#g" /etc/supervisor.d/caddy.conf
-sed -i "s#/app/Caddyfile#/opt/postiz/Caddyfile#g" /opt/postiz/entrypoint.sh
-sed -i "s#directory=/app#directory=/opt/postiz#g" /etc/supervisor.d/caddy.conf
-export NODE_OPTIONS="--max-old-space-size=2560"
+set -a && source /opt/postiz/.env && set +a
+export NODE_OPTIONS="--max-old-space-size=4096"
 $STD pnpm install
 $STD pnpm run build
-chmod +x entrypoint.sh
+unset NODE_OPTIONS
+msg_ok "Built Application"
 
-cat <<EOF >.env
-NOT_SECURED="true"
-IS_GENERAL="true"
-DATABASE_URL="postgresql://$DB_USER:$DB_PASS@localhost:5432/$DB_NAME"
-REDIS_URL="redis://localhost:6379"
-JWT_SECRET="$JWT_SECRET"
-FRONTEND_URL="http://$LOCAL_IP:4200"
-NEXT_PUBLIC_BACKEND_URL="http://$LOCAL_IP:3000"
-BACKEND_INTERNAL_URL="http://$LOCAL_IP:3000"
-EOF
-msg_ok "Configured Postiz"
+msg_info "Running Database Migrations"
+cd /opt/postiz
+set -a && source /opt/postiz/.env && set +a
+$STD pnpm run prisma-db-push
+msg_ok "Ran Database Migrations"
 
-msg_info "Creating Service"
-cat <<EOF >/etc/systemd/system/postiz.service
+msg_info "Creating Services"
+PNPM_BIN="$(command -v pnpm)"
+
+cat <<EOF >/etc/systemd/system/postiz-temporal.service
 [Unit]
-Description=Postiz Service
+Description=Temporal Dev Server (Postiz)
 After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/opt/temporal/temporal server start-dev --db-filename /opt/temporal/temporal.db --log-format json --log-level warn
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+cat <<EOF >/etc/systemd/system/postiz-backend.service
+[Unit]
+Description=Postiz Backend
+After=network.target postgresql.service redis-server.service postiz-temporal.service
+Requires=postgresql.service redis-server.service
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/opt/postiz
 EnvironmentFile=/opt/postiz/.env
-ExecStart=/usr/bin/pnpm run pm2-run
-Restart=always
+ExecStart=${PNPM_BIN} run start:prod:backend
+Environment=NODE_OPTIONS=--max-old-space-size=512
+Restart=on-failure
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
 EOF
-systemctl enable -q --now postiz
-msg_ok "Created Service"
+
+cat <<EOF >/etc/systemd/system/postiz-frontend.service
+[Unit]
+Description=Postiz Frontend
+After=network.target postiz-backend.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/postiz
+EnvironmentFile=/opt/postiz/.env
+Environment=PORT=4200
+ExecStart=${PNPM_BIN} run start:prod:frontend
+Environment=NODE_OPTIONS=--max-old-space-size=512
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+cat <<EOF >/etc/systemd/system/postiz-orchestrator.service
+[Unit]
+Description=Postiz Orchestrator
+After=network.target postiz-temporal.service postiz-backend.service
+Requires=postiz-temporal.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/postiz
+EnvironmentFile=/opt/postiz/.env
+ExecStart=${PNPM_BIN} run start:prod:orchestrator
+Environment=NODE_OPTIONS=--max-old-space-size=384
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl enable -q --now redis-server postiz-temporal postiz-backend postiz-frontend postiz-orchestrator
+msg_ok "Created Services"
+
+msg_info "Creating Helper Scripts"
+cat <<'EOF' >/usr/local/bin/postiz-rebuild
+#!/usr/bin/env bash
+echo "=== Postiz Rebuild ==="
+echo "Stopping services..."
+systemctl stop postiz-orchestrator postiz-frontend postiz-backend
+
+cd /opt/postiz
+set -a && source /opt/postiz/.env && set +a
+export NODE_OPTIONS="--max-old-space-size=4096"
+
+echo "Building application (this may take a while)..."
+pnpm run build
+BUILD_RC=$?
+unset NODE_OPTIONS
+
+if [[ $BUILD_RC -ne 0 ]]; then
+  echo "ERROR: Build failed! Check the output above."
+  echo "Starting services with previous build..."
+  systemctl start postiz-backend postiz-frontend postiz-orchestrator
+  exit 1
+fi
+
+echo "Running database migrations..."
+pnpm run prisma-db-push
+
+echo "Starting services..."
+systemctl start postiz-backend postiz-frontend postiz-orchestrator
+echo "=== Rebuild complete ==="
+EOF
+chmod +x /usr/local/bin/postiz-rebuild
+msg_ok "Created Helper Scripts"
+
+msg_info "Configuring Nginx"
+cat <<EOF >/etc/nginx/sites-available/postiz
+server {
+  listen 80 default_server;
+  server_name _;
+
+  client_max_body_size 100M;
+
+  gzip on;
+  gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+  location /api/ {
+    proxy_pass http://127.0.0.1:3000/;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade \$http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+    proxy_set_header Reload \$http_reload;
+    proxy_set_header Onboarding \$http_onboarding;
+    proxy_set_header Activate \$http_activate;
+    proxy_set_header Auth \$http_auth;
+    proxy_set_header Showorg \$http_showorg;
+    proxy_set_header Impersonate \$http_impersonate;
+    proxy_set_header Accept-Language \$http_accept_language;
+  }
+
+  location /uploads/ {
+    alias /opt/postiz/uploads/;
+  }
+
+  location / {
+    proxy_pass http://127.0.0.1:4200/;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade \$http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+    proxy_set_header Reload \$http_reload;
+    proxy_set_header Onboarding \$http_onboarding;
+    proxy_set_header Activate \$http_activate;
+    proxy_set_header Auth \$http_auth;
+    proxy_set_header Showorg \$http_showorg;
+    proxy_set_header Impersonate \$http_impersonate;
+    proxy_set_header Accept-Language \$http_accept_language;
+    proxy_set_header i18next \$http_i18next;
+  }
+}
+EOF
+ln -sf /etc/nginx/sites-available/postiz /etc/nginx/sites-enabled/postiz
+rm -f /etc/nginx/sites-enabled/default
+$STD nginx -t
+systemctl enable -q nginx
+systemctl reload -q nginx
+msg_ok "Configured Nginx"
 
 motd_ssh
 customize
-
-msg_info "Cleaning up"
-$STD apt-get -y autoremove
-$STD apt-get -y autoclean
-msg_ok "Cleaned"
+cleanup_lxc

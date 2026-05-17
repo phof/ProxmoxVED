@@ -1,4 +1,4 @@
-## **Scripts wich are clearly AI generated and not further revied by the Author of this PR (in terms of Coding Standards and Script Layout) may be closed without review.**
+## **Scripts which are clearly AI generated and not further revised by the Author of this PR (in terms of Coding Standards and Script Layout) may be closed without review.**
 
 ## ✍️ Description  
 <!-- Briefly describe your changes. -->  
@@ -37,3 +37,18 @@ Link: #
 
 ## 📋 Additional Information (optional)  
 <!-- Add any extra context, screenshots, or references. -->  
+
+---
+
+## 📦 Application Requirements (for new scripts)
+
+> Required for **🆕 New script** submissions.  
+> Pull requests that do not meet these requirements may be closed without review.
+- [ ] The application is **at least 6 months old**
+- [ ] The application is **actively maintained**
+- [ ] The application has **600+ GitHub stars**
+- [ ] Official **release tarballs** are published
+- [ ] I understand that not all scripts will be accepted due to various reasons and criteria by the community-scripts ORG
+
+## 🌐 Source
+<!-- Add any sources and github links. -->  

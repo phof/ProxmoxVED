@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2021-2025 community-scripts ORG
+# Copyright (c) 2021-2026 community-scripts ORG
 # Author: MickLesk (Canbiz)
 # License: MIT |
 
@@ -14,7 +14,7 @@ update_os
 
 msg_info "Setup Functions"
 setup_local_ip_helper
-import_local_ip
+
 msg_ok "Setup Functions"
 
 msg_info "Installing Dependencies (Patience)"

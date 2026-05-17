@@ -1,0 +1,138 @@
+{
+  "generated": "2026-02-04T19:01:08Z",
+  "versions": [
+    {
+      "slug": "affine",
+      "repo": "toeverything/AFFiNE",
+      "version": "v0.25.7",
+      "pinned": false,
+      "date": "2025-12-09T04:34:14Z"
+    },
+    {
+      "slug": "anytype",
+      "repo": "grishy/any-sync-bundle",
+      "version": "v1.3.0-2026-01-31",
+      "pinned": false,
+      "date": "2026-02-01T17:27:12Z"
+    },
+    {
+      "slug": "checkmate",
+      "repo": "bluewave-labs/Checkmate",
+      "version": "v3.3",
+      "pinned": false,
+      "date": "2026-01-28T14:25:25Z"
+    },
+    {
+      "slug": "databasus",
+      "repo": "databasus/databasus",
+      "version": "v3.8.3",
+      "pinned": false,
+      "date": "2026-02-02T18:14:53Z"
+    },
+    {
+      "slug": "ente",
+      "repo": "ente-io/ente",
+      "version": "photos-v1.3.10",
+      "pinned": false,
+      "date": "2026-02-03T11:06:10Z"
+    },
+    {
+      "slug": "frigate",
+      "repo": "blakeblackshear/frigate",
+      "version": "v0.16.4",
+      "pinned": false,
+      "date": "2026-01-29T00:42:14Z"
+    },
+    {
+      "slug": "garmin-grafana",
+      "repo": "arpanghosh8453/garmin-grafana",
+      "version": "v0.3.0",
+      "pinned": false,
+      "date": "2025-05-15T21:39:19Z"
+    },
+    {
+      "slug": "hoodik",
+      "repo": "hudikhq/hoodik",
+      "version": "v1.8.1",
+      "pinned": false,
+      "date": "2025-12-22T20:32:27Z"
+    },
+    {
+      "slug": "isponsorblocktv",
+      "repo": "dmunozv04/iSponsorBlockTV",
+      "version": "v2.6.1",
+      "pinned": false,
+      "date": "2025-10-19T17:43:10Z"
+    },
+    {
+      "slug": "minthcm",
+      "repo": "minthcm/minthcm",
+      "version": "4.2.2",
+      "pinned": false,
+      "date": "2025-10-10T09:37:21Z"
+    },
+    {
+      "slug": "nextexplorer",
+      "repo": "vikramsoni2/nextExplorer",
+      "version": "v2.1.2a",
+      "pinned": false,
+      "date": "2026-01-31T00:09:18Z"
+    },
+    {
+      "slug": "nginx-ui",
+      "repo": "0xJacky/nginx-ui",
+      "version": "v2.3.2",
+      "pinned": false,
+      "date": "2025-12-09T09:47:15Z"
+    },
+    {
+      "slug": "nightscout",
+      "repo": "nightscout/cgm-remote-monitor",
+      "version": "15.0.3",
+      "pinned": false,
+      "date": "2025-05-08T22:12:34Z"
+    },
+    {
+      "slug": "opencloud",
+      "repo": "opencloud-eu/opencloud",
+      "version": "v5.0.1",
+      "pinned": true,
+      "date": "2026-01-28T15:08:23Z"
+    },
+    {
+      "slug": "pixelfed",
+      "repo": "pixelfed/pixelfed",
+      "version": "v0.12.6",
+      "pinned": false,
+      "date": "2025-09-03T12:12:04Z"
+    },
+    {
+      "slug": "romm",
+      "repo": "RetroAchievements/RALibretro",
+      "version": "1.8.2",
+      "pinned": false,
+      "date": "2026-01-23T17:03:31Z"
+    },
+    {
+      "slug": "seer",
+      "repo": "seerr-team/seerr",
+      "version": "v2.7.3",
+      "pinned": false,
+      "date": "2025-08-14T20:43:46Z"
+    },
+    {
+      "slug": "sonobarr",
+      "repo": "Dodelidoo-Labs/sonobarr",
+      "version": "0.11.0",
+      "pinned": false,
+      "date": "2026-01-21T19:07:21Z"
+    },
+    {
+      "slug": "wger",
+      "repo": "wger-project/wger",
+      "version": "2.4",
+      "pinned": false,
+      "date": "2026-01-18T12:12:02Z"
+    }
+  ]
+}

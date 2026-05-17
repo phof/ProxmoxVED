@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2021-2025 tteck
+# Copyright (c) 2021-2026 tteck
 # Author: tteck (tteckster)
 # License: MIT
 # https://github.com/community-scripts/ProxmoxVE/raw/main/LICENSE
 
-source /dev/stdin <<<$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/api.func)
+COMMUNITY_SCRIPTS_URL="${COMMUNITY_SCRIPTS_URL:-https://git.community-scripts.org/community-scripts/ProxmoxVED/raw/branch/main}"
+source /dev/stdin <<<$(curl -fsSL "$COMMUNITY_SCRIPTS_URL/misc/api.func")
 
 function header_info {
   clear
   cat <<"EOF"
  ______              __ __           _  __        __      __             __  _   ____  ___
 /_  __/_ _________  / //_/__ __ __  / |/ /____ __/ /_____/ /__  __ _____/ / | | / /  |/  /
- / / / // / __/ _ \/ ,< / -_) // / /    / -_) \ / __/ __/ / _ \/ // / _  /  | |/ / /|_/ / 
-/_/  \_,_/_/ /_//_/_/|_|\__/\_, / /_/|_/\__/_\_\\__/\__/_/\___/\_,_/\_,_/   |___/_/  /_/  
+ / / / // / __/ _ \/ ,< / -_) // / /    / -_) \ / __/ __/ / _ \/ // / _  /  | |/ / /|_/ /
+/_/  \_,_/_/ /_//_/_/|_|\__/\_, / /_/|_/\__/_\_\\__/\__/_/\___/\_,_/\_,_/   |___/_/  /_/
                            /___/
 EOF
 }
@@ -118,9 +119,9 @@ function check_root() {
 }
 
 function pve_check() {
-  if ! pveversion | grep -Eq "pve-manager/8\.[1-4](\.[0-9]+)*"; then
+  if ! pveversion | grep -Eq "pve-manager/(8\.[1-4]|9\.[0-1])(\.[0-9]+)*"; then
     msg_error "This version of Proxmox Virtual Environment is not supported"
-    echo -e "Requires Proxmox Virtual Environment Version 8.1 or later."
+    echo -e "Requires Proxmox Virtual Environment Version 8.1 - 8.4 or 9.0 - 9.1."
     echo -e "Exiting..."
     sleep 2
     exit
@@ -456,7 +457,7 @@ DESCRIPTION=$(
       <img src='https://img.shields.io/badge/&#x2615;-Buy us a coffee-blue' alt='spend Coffee' />
     </a>
   </p>
-  
+
   <span style='margin: 0 10px;'>
     <i class="fa fa-github fa-fw" style="color: #f5f5f5;"></i>
     <a href='https://github.com/community-scripts/ProxmoxVE' target='_blank' rel='noopener noreferrer' style='text-decoration: none; color: #00617f;'>GitHub</a>
@@ -481,4 +482,4 @@ if [ "$START_VM" == "yes" ]; then
   msg_ok "Started $NAME"
 fi
 post_update_to_api "done" "none"
-msg_ok "Completed Successfully!\n"
+msg_ok "Completed successfully!\n"
